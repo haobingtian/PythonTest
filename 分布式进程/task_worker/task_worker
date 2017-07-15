@@ -1,0 +1,44 @@
+from multiprocessing.managers import BaseManager
+import queue,logging,time,os
+logging.basicConfig(level=logging.DEBUG)
+
+class QueueManager(BaseManager):
+    pass
+
+def main():
+    serverAddress='127.0.0.1'
+    QueueManager.register('get_queue')
+    iManager=QueueManager(address=(serverAddress,10000),authkey=b'test')
+    logging.info('开始尝试连接服务器(%s)'%serverAddress)
+    times=0
+    while True:
+        times=times+1
+        logging.info('第%d次尝试连接'%times)
+        try:
+            iManager.connect()
+        except ConnectionRefusedError as e:
+            logging.warn('第%d次连接失败'%times)
+        else:
+            break
+        time.sleep(1)
+    logging.info('连接成功')
+    taskQueue=iManager.get_queue('task')
+    resultQueue=iManager.get_queue('result')
+    loginmsg=iManager.get_queue('login')
+    loginmsg.put('本地测试客户端已上线（系统：%s）'%os.name)
+    os.system('pause')
+    try:
+        while True:
+            task=list(taskQueue.get())
+            logging.info('获取到id为%d的任务'%task[0])
+            task.append(''.join([task[1] for i in range(task[2])]))
+            resultQueue.put(task)
+            logging.info('任务完成，id:%d'%task[0])
+        logging.info('程序结束')
+    except BaseException:
+        pass
+    finally:
+        loginmsg.put('本地测试客户端已下线（系统：%s）'%os.name)
+
+if __name__ == '__main__':
+    main()

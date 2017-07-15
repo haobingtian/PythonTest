@@ -1,0 +1,58 @@
+from multiprocessing.managers import BaseManager
+from multiprocessing import freeze_support
+import queue,logging,random,string,json,os
+from threading import Thread
+logging.basicConfig(level=logging.DEBUG)
+
+iManager=None
+
+class QueueManager(BaseManager):
+    pass
+
+a=[queue.Queue() for i in range(3)]
+dict={'task':a[0],'result':a[1],'login':a[2]}
+def return_queue(id):
+    global dict
+    return  dict[id]
+
+def betterPrint(dict):
+    res=''.join(['id : %d\n'%dict[0],'taskString : %s\n'%dict[1],'Count : %s\n'%dict[2],'resultString : %s\n'%dict[3]])
+    print(res)
+
+def ClinentMonitor():
+    loginQueue=iManager.get_queue('login')
+    while True:
+        ms=loginQueue.get()
+        logging.info(ms)
+
+def main():
+    global iManager
+    QueueManager.register('get_queue',callable = return_queue)
+    iManager=QueueManager(address=('127.0.0.1',9999),authkey=b'test')
+    monitor=Thread(target=ClinentMonitor,name='ClinentMonitor')
+    logging.info('服务器创建完成')
+    iManager.start()
+    monitor.start()
+    logging.info('服务器启动')
+    taskQueue=iManager.get_queue('task')
+    resultQueue=iManager.get_queue('result')
+    uid=0
+    while True:
+        if taskQueue.qsize()<100:
+            for i in range(10):
+                str=''.join([random.choice(string.ascii_letters) for x in range(5)])
+                count=random.randint(1,20)
+                task=(uid,str,count)
+                uid=uid+1
+                taskQueue.put(task)
+        for i in range(10):
+            try:
+                result=resultQueue.get(timeout=5)
+                betterPrint(result)
+            except queue.Empty as e:
+                logging.warn('获取失败')
+
+
+if __name__ == '__main__':
+    freeze_support()
+    main()
